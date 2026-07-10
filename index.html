@@ -162,7 +162,7 @@ window.addEventListener('error',function(e){
 <section id="tab-basic" class="tabpane show">
   <div class="card">
     <div class="sec"><h2>雛型ファイル（任意）</h2><small>Ver3.0雛型は内蔵済み・選択不要</small></div>
-    <input type="file" id="tplFile" accept=".xlsx">
+    <input type="file" id="tplFile">
     <p class="hint">通常はそのまま生成できます。雛型が新しくなった時や、入力途中のファイルに追記したい時だけここで読み込んでください。書式・数式には一切手を加えず、入力セルに値だけを書き込みます。</p>
   </div>
 
@@ -236,7 +236,7 @@ window.addEventListener('error',function(e){
     <div style="display:flex; gap:8px; flex-wrap:wrap;">
       <button class="btn" id="saveDraft">下書きを保存（JSON）</button>
       <label class="btn" style="display:flex;align-items:center;justify-content:center;">
-        下書きを読み込む<input type="file" id="loadDraft" accept=".json" hidden>
+        下書きを読み込む<input type="file" id="loadDraft" hidden>
       </label>
     </div>
   </div>
@@ -692,9 +692,17 @@ async function fillWorkbook(zip,st){
 ========================================================= */
 $('#tplFile').addEventListener('change',async e=>{
   const f=e.target.files[0]; if(!f)return;
-  templateBuf=await f.arrayBuffer(); templateName=f.name;
-  const chip=$('#fileChip'); chip.textContent=f.name; chip.classList.add('loaded');
-  refreshSummary(); toast('雛型を読み込みました');
+  try{
+    const buf=await f.arrayBuffer();
+    const z=await JSZip.loadAsync(buf.slice(0));
+    if(!z.file('xl/workbook.xml'))throw new Error('not xlsx');
+    templateBuf=buf; templateName=f.name;
+    const chip=$('#fileChip'); chip.textContent=f.name; chip.classList.add('loaded');
+    refreshSummary(); toast('雛型を読み込みました');
+  }catch(err){
+    e.target.value='';
+    toast('Excelファイル（.xlsx）として読み込めませんでした。選ぶファイルを確認してください');
+  }
 });
 
 function embeddedTemplate(){
@@ -706,16 +714,39 @@ function embeddedTemplate(){
 const isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1);
 let readyBlob=null, readyName='';
 
-function doDownload(blob,filename){
+async function doDownload(blob,filename){
+  const type=blob.type||'application/octet-stream';
   if(isIOS){
-    // iOSはwindow.open(blob URL)が無音でブロックされることがあるため、
-    // 現在のタブをそのままファイルのdata URIへ遷移させる（確実性の高い方式）
+    // 第1候補: 共有シート（ファイル名を保持できる・iOS15以降）
+    try{
+      if(navigator.share&&navigator.canShare){
+        const file=new File([blob],filename,{type:type});
+        if(navigator.canShare({files:[file]})){
+          toast('共有画面で「ファイルに保存」を選んでください');
+          await navigator.share({files:[file],title:filename});
+          return;
+        }
+      }
+    }catch(err){
+      if(err&&err.name==='AbortError')return; // ユーザーが共有をキャンセル
+      /* 非対応・失敗時は次の方式へ */
+    }
+    // 第2候補: 通常ダウンロード（iOS13〜14）
+    try{
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a');
+      a.href=url; a.download=filename;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url),10000);
+      toast('ダウンロードしました（ファイルアプリの「ダウンロード」を確認）');
+      return;
+    }catch(e2){}
+    // 最終手段: 画面遷移（ファイル名は保持されません）
     const reader=new FileReader();
     reader.onload=function(){
-      toast('保存画面が開きます。右上の共有アイコン→「ファイルに保存」を選んでください');
+      toast('保存画面が開きます。右上の共有アイコン→「ファイルに保存」');
       window.location.href=reader.result;
     };
-    reader.onerror=function(){ toast('ファイルの変換に失敗しました。もう一度お試しください'); };
     reader.readAsDataURL(blob);
     return;
   }
