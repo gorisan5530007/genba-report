@@ -699,19 +699,23 @@ const isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform=
 let readyBlob=null, readyName='';
 
 function doDownload(blob,filename){
-  const url=URL.createObjectURL(blob);
   if(isIOS){
-    // iOSはBlobのURLを新規タブで開くと「共有」→「ファイルに保存」を選べる
-    const w=window.open(url,'_blank');
-    if(!w){ location.href=url; }
-    setTimeout(()=>URL.revokeObjectURL(url),60000);
-    toast('別タブが開きます。右上の共有アイコン→「ファイルに保存」を選んでください');
-  }else{
-    const a=document.createElement('a');
-    a.href=url; a.download=filename;
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(()=>URL.revokeObjectURL(url),4000);
+    // iOSはwindow.open(blob URL)が無音でブロックされることがあるため、
+    // 現在のタブをそのままファイルのdata URIへ遷移させる（確実性の高い方式）
+    const reader=new FileReader();
+    reader.onload=function(){
+      toast('保存画面が開きます。右上の共有アイコン→「ファイルに保存」を選んでください');
+      window.location.href=reader.result;
+    };
+    reader.onerror=function(){ toast('ファイルの変換に失敗しました。もう一度お試しください'); };
+    reader.readAsDataURL(blob);
+    return;
   }
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download=filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),4000);
 }
 
 $('#generate').addEventListener('click',async ()=>{
