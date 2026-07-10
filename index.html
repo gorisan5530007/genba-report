@@ -60,14 +60,15 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--accent); outline
 textarea{min-height:96px; resize:vertical;}
 .hint{font-size:11px; color:var(--sub); margin-top:6px;}
 .row-date{display:grid; grid-template-columns:1.2fr 1fr 1fr; gap:8px;}
-button.btn{
-  appearance:none; font:inherit; font-weight:700; border-radius:8px; cursor:pointer;
+.btn{
+  appearance:none; -webkit-appearance:none; font:inherit; font-weight:700; border-radius:8px; cursor:pointer;
   padding:11px 16px; min-height:44px; border:1px solid var(--line); background:#fff; color:var(--ink);
+  display:inline-flex; align-items:center; justify-content:center; text-align:center;
 }
-button.btn.primary{background:var(--accent); border-color:var(--accent); color:#fff;}
-button.btn.ghost{background:var(--accent-soft); border-color:#F3C4A5; color:#B24007;}
-button.btn.small{min-height:36px; padding:6px 12px; font-size:13px;}
-button.btn:disabled{opacity:.45; cursor:not-allowed;}
+.btn.primary{background:var(--accent); border-color:var(--accent); color:#fff;}
+.btn.ghost{background:var(--accent-soft); border-color:#F3C4A5; color:#B24007;}
+.btn.small{min-height:36px; padding:6px 12px; font-size:13px;}
+.btn:disabled{opacity:.45; cursor:not-allowed;}
 
 /* ---- day strip (signature) ---- */
 .daystrip{
@@ -234,10 +235,9 @@ window.addEventListener('error',function(e){
   <div class="card">
     <div class="sec steel"><h2>下書きの保存・復元</h2><small>端末をまたぐ時はJSONで受け渡し</small></div>
     <div style="display:flex; gap:8px; flex-wrap:wrap;">
-      <button class="btn" id="saveDraft">下書きを保存（JSON）</button>
-      <label class="btn" style="display:flex;align-items:center;justify-content:center;">
-        下書きを読み込む<input type="file" id="loadDraft" hidden>
-      </label>
+      <button class="btn" id="saveDraft">💾 下書きを保存（JSON）</button>
+      <button class="btn" id="loadDraftBtn">📂 下書きを読み込む</button>
+      <input type="file" id="loadDraft" hidden>
     </div>
   </div>
   <div class="card">
@@ -690,19 +690,40 @@ async function fillWorkbook(zip,st){
 /* =========================================================
    ファイル入出力
 ========================================================= */
-$('#tplFile').addEventListener('change',async e=>{
-  const f=e.target.files[0]; if(!f)return;
+function readFileBuf(f){
+  return new Promise((res,rej)=>{
+    const r=new FileReader();
+    r.onload=()=>res(r.result);
+    r.onerror=()=>rej(new Error('read error'));
+    r.readAsArrayBuffer(f);
+  });
+}
+async function smartLoad(f){
+  let buf;
+  try{ buf=await readFileBuf(f); }
+  catch(e){ toast('ファイルを開けませんでした'); return; }
+  // 1) Excel雛型として試す
   try{
-    const buf=await f.arrayBuffer();
     const z=await JSZip.loadAsync(buf.slice(0));
-    if(!z.file('xl/workbook.xml'))throw new Error('not xlsx');
-    templateBuf=buf; templateName=f.name;
-    const chip=$('#fileChip'); chip.textContent=f.name; chip.classList.add('loaded');
-    refreshSummary(); toast('雛型を読み込みました');
-  }catch(err){
-    e.target.value='';
-    toast('Excelファイル（.xlsx）として読み込めませんでした。選ぶファイルを確認してください');
-  }
+    if(z.file('xl/workbook.xml')){
+      templateBuf=buf; templateName=f.name;
+      const chip=$('#fileChip'); chip.textContent=f.name; chip.classList.add('loaded');
+      refreshSummary(); toast('雛型（Excel）として読み込みました');
+      return;
+    }
+  }catch(e){}
+  // 2) 下書きJSONとして試す
+  try{
+    const text=new TextDecoder('utf-8').decode(buf);
+    state=normalizeState(JSON.parse(text));
+    store(); syncBasicInputs(); renderStrip(); renderDayForm(); refreshSummary(); renderDayHeaderNames();
+    toast('下書きを読み込みました');
+    return;
+  }catch(e){}
+  toast('読み込めませんでした。雛型Excel（.xlsx）か、このアプリで保存した下書きJSONを選んでください');
+}
+$('#tplFile').addEventListener('change',e=>{
+  const f=e.target.files[0]; if(f)smartLoad(f); e.target.value='';
 });
 
 function embeddedTemplate(){
@@ -841,21 +862,9 @@ function normalizeState(data){
   }
   return data;
 }
+$('#loadDraftBtn').addEventListener('click',()=>{ $('#loadDraft').click(); });
 $('#loadDraft').addEventListener('change',e=>{
-  const f=e.target.files[0]; if(!f)return;
-  const reader=new FileReader();
-  reader.onload=function(){
-    try{
-      state=normalizeState(JSON.parse(reader.result));
-      store(); syncBasicInputs(); renderStrip(); renderDayForm(); refreshSummary(); renderDayHeaderNames();
-      toast('下書きを読み込みました');
-    }catch(err){
-      toast('下書きの読み込みに失敗：このアプリで保存したJSONファイルか確認してください');
-    }
-    e.target.value='';
-  };
-  reader.onerror=function(){ toast('ファイルを開けませんでした'); e.target.value=''; };
-  reader.readAsText(f);
+  const f=e.target.files[0]; if(f)smartLoad(f); e.target.value='';
 });
 
 /* =========================================================
