@@ -117,6 +117,36 @@ footer.actionbar button{flex:1;}
   opacity:0; pointer-events:none; transition:opacity .25s; z-index:40; max-width:90vw; text-align:center;
 }
 #toast.show{opacity:1;}
+
+/* ---- help ---- */
+#helpov{position:fixed; inset:0; background:rgba(32,38,46,.6); z-index:50; display:none;}
+#helpov.show{display:block;}
+#helppanel{
+  position:absolute; left:0; right:0; bottom:0; top:7vh; margin:0 auto; max-width:780px;
+  background:var(--bg); border-radius:14px 14px 0 0; overflow-y:auto; -webkit-overflow-scrolling:touch;
+  padding:0 14px 30px;
+}
+#helphead{
+  position:sticky; top:0; background:var(--ink); color:#fff; margin:0 -14px 12px; padding:14px 16px;
+  display:flex; justify-content:space-between; align-items:center; border-bottom:3px solid var(--accent);
+}
+#helphead h2{font-size:16px; font-weight:800;}
+#helpclose{appearance:none;-webkit-appearance:none;border:0;background:#3a424d;color:#fff;border-radius:999px;padding:8px 16px;font:inherit;font-weight:700;cursor:pointer;}
+#helppanel details{background:var(--panel); border:1px solid var(--line); border-radius:10px; margin-bottom:10px; overflow:hidden;}
+#helppanel summary{
+  list-style:none; cursor:pointer; padding:13px 14px; font-weight:800; font-size:14px;
+  border-left:5px solid var(--accent); display:flex; justify-content:space-between; align-items:center;
+}
+#helppanel summary::-webkit-details-marker{display:none;}
+#helppanel summary::after{content:'＋'; color:var(--sub); font-weight:400;}
+#helppanel details[open] summary::after{content:'−';}
+#helppanel .hbody{padding:0 14px 14px; font-size:13.5px; color:#333a44;}
+#helppanel .hbody p{margin:8px 0;}
+#helppanel .hbody b{color:var(--ink);}
+#helppanel .step{display:flex; gap:10px; margin:10px 0; align-items:flex-start;}
+#helppanel .step .n{flex:0 0 24px; height:24px; border-radius:50%; background:var(--accent); color:#fff; font-weight:800; font-size:13px; display:flex; align-items:center; justify-content:center;}
+#helppanel .qa{border-top:1px dashed var(--line); padding-top:8px; margin-top:8px;}
+#helppanel .qa .q{font-weight:700;}
 @media(prefers-reduced-motion:reduce){ *{transition:none!important;} }
 </style>
 </head>
@@ -145,7 +175,10 @@ window.addEventListener('error',function(e){
       <span class="eyebrow">GENBA REPORT ASSIST</span>
       <h1>施工完了報告書 入力アシスト</h1>
     </div>
-    <span id="fileChip" class="loaded">内蔵雛型を使用</span>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <span id="fileChip" class="loaded">内蔵雛型を使用</span>
+      <button id="helpBtn" aria-label="使い方" style="appearance:none;-webkit-appearance:none;border:1.5px solid #F8B995;background:transparent;color:#F8B995;font-weight:800;font-size:15px;width:32px;height:32px;border-radius:50%;cursor:pointer;flex:0 0 auto;">？</button>
+    </div>
   </div>
 </header>
 
@@ -254,6 +287,89 @@ window.addEventListener('error',function(e){
     <button class="btn primary" id="generate">Excelを生成してダウンロード</button>
   </div>
 </footer>
+
+<div id="helpov">
+  <div id="helppanel">
+    <div id="helphead"><h2>使い方ガイド</h2><button id="helpclose">閉じる ✕</button></div>
+
+    <details open>
+      <summary>基本の流れ（3ステップ）</summary>
+      <div class="hbody">
+        <div class="step"><span class="n">1</span><span><b>「基本情報」タブ</b>で案件名・受付No.・請負会社・応援会社などを入力</span></div>
+        <div class="step"><span class="n">2</span><span><b>「日報」タブ</b>で作業した日を選び、作業者・時間・材料・経費を入力（毎日その日の分を入れるだけでOK）</span></div>
+        <div class="step"><span class="n">3</span><span>工事が終わったら<b>「出力」タブ</b>→「Excelを生成してダウンロード」。集計や単価計算はExcelの数式が自動で行います</span></div>
+        <p>入力内容はこの端末に<b>自動保存</b>されます。途中でアプリを閉じても消えません。</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>基本情報タブ</summary>
+      <div class="hbody">
+        <p><b>案件名・受付No.</b>…出力するExcelのファイル名（受付No_案件名_施工完了報告書.xlsx）にも使われます。</p>
+        <p><b>応援会社①②</b>…ここで選んだ会社が、日報タブの応援会社欄の名前になります。応援がない場合は「なし」のままでOK。</p>
+        <p><b>案件予実比較</b>…案件管理表からの転記欄です。空欄のままでも生成できます。</p>
+        <p><b>雛型ファイル（任意）</b>…通常は触らなくてOK（雛型はアプリに内蔵済み）。雛型が新しくなった時や、入力途中のExcelに追記したい時だけファイルを選んでください。</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>日報タブ</summary>
+      <div class="hbody">
+        <p><b>日付の帯（1〜31日目）</b>…作業日を選びます。<b>●印は入力済み</b>の日です。</p>
+        <p><b>作業者</b>…リストから選択。リストにない人は一番下の「✎ 手入力…」を選ぶと名前を直接入力できます。1つの班は最大5名、1社最大4班です。</p>
+        <p><b>始業・終業</b>…30分きざみで選択。<b>深夜0時をまたぐ場合は「翌」の付いた時刻</b>（例：26:00（翌2:00））を選んでください。夜勤の計算が正しく行われます。</p>
+        <p><b>前の入力日からコピー</b>…メンバー・時間・経費を前の入力済みの日から丸ごとコピーします（日付と引継ぎ事項はコピーされません）。連日同じ体制の時に便利です。</p>
+        <p><b>諸経費のガソリン価格・燃費</b>…空欄なら雛型の既定値（160円/L・10km/L）で計算されます。</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>Excelの生成と保存（iPhone）</summary>
+      <div class="hbody">
+        <div class="step"><span class="n">1</span><span>「Excelを生成してダウンロード」を押す → ボタンが<b>「📥 ダウンロード（ファイル名）」</b>に変わる</span></div>
+        <div class="step"><span class="n">2</span><span>そのボタンを<b>もう一度押す</b> → 共有画面が開く</span></div>
+        <div class="step"><span class="n">3</span><span><b>「ファイルに保存」</b>を選ぶ →「ファイル」アプリに保存されます。LINEやメールで直接送ることも同じ画面からできます</span></div>
+        <p>パソコン・Androidでは1回押すだけで、通常のダウンロードフォルダに保存されます。</p>
+        <p>生成したExcelを開くと、数式が自動で再計算されます。雛型の書式・数式はそのまま保たれています。</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>下書きの保存・復元（端末をまたぐ時）</summary>
+      <div class="hbody">
+        <p>同じ端末・同じブラウザで続きをやるなら何もしなくてOK（自動保存）。<b>スマホ→PCなど端末を変える時</b>だけ以下の手順です。</p>
+        <div class="step"><span class="n">1</span><span>出力タブ →「💾 下書きを保存（JSON）」でファイルを保存</span></div>
+        <div class="step"><span class="n">2</span><span>そのファイルをLINE・メール・AirDropなどで相手の端末へ送る</span></div>
+        <div class="step"><span class="n">3</span><span>受け取った端末でアプリを開き「📂 下書きを読み込む」でそのファイルを選ぶ → 入力内容がすべて復元されます</span></div>
+        <p>※ファイルはExcelか下書きJSONかを自動判別するので、どちらの選択欄から選んでも正しく読み込まれます。</p>
+        <p>※生成後のExcelファイルから入力欄に戻すことはできません。中断しそうな時は下書きJSONも保存しておくのがおすすめです。</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>次の案件を始める時</summary>
+      <div class="hbody">
+        <p>出力タブの一番下「<b>⚠ すべての入力をクリア</b>」を押すと、案件情報・日報・自動保存データがすべて消えて、まっさらな状態から始められます。</p>
+        <p>消す前に「💾 下書きを保存」しておけば、あとから読み込んで戻すこともできます。</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>困った時は（よくある質問）</summary>
+      <div class="hbody">
+        <div class="qa"><p class="q">Q. 画面の上に赤い帯が出て動かない</p>
+        <p>A. プレビュー表示（ファイルアプリやメールのプレビュー）で開いています。SafariやChromeでURLを開き直してください。</p></div>
+        <div class="qa"><p class="q">Q. 保存したExcelがどこにあるか分からない</p>
+        <p>A. iPhoneは「ファイル」アプリの「ダウンロード」フォルダ（保存時に選んだ場所）、PCはブラウザのダウンロードフォルダにあります。</p></div>
+        <div class="qa"><p class="q">Q. 間違えて変な内容で生成してしまった</p>
+        <p>A. 生成はいつでも何度でもやり直せます。入力を直してもう一度生成してください（古いファイルは削除すればOK）。</p></div>
+        <div class="qa"><p class="q">Q. エラーの赤いバーに英語のメッセージが出た</p>
+        <p>A. その文言をそのまま開発者（管理者）に伝えてください。原因の特定が早くなります。</p></div>
+      </div>
+    </details>
+
+  </div>
+</div>
 
 <div id="toast"></div>
 
@@ -878,6 +994,13 @@ document.querySelectorAll('nav.tabs button').forEach(b=>b.addEventListener('clic
   if(b.dataset.tab==='days'){renderStrip();renderDayForm();}
   if(b.dataset.tab==='out')refreshSummary();
 }));
+
+/* =========================================================
+   ヘルプ
+========================================================= */
+$('#helpBtn').addEventListener('click',()=>{ $('#helpov').classList.add('show'); });
+$('#helpclose').addEventListener('click',()=>{ $('#helpov').classList.remove('show'); });
+$('#helpov').addEventListener('click',e=>{ if(e.target.id==='helpov')$('#helpov').classList.remove('show'); });
 
 /* =========================================================
    起動
