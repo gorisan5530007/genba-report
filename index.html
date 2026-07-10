@@ -203,8 +203,9 @@ window.addEventListener('error',function(e){
   <div class="card">
     <div class="sec"><h2>案件情報</h2><small>初期設定・完了報告書シート</small></div>
     <div class="grid">
-      <label class="f">完了日
-        <div class="row-date">
+      <label class="f">完了日（カレンダーでもプルダウンでも選べます）
+        <input type="date" id="p_date">
+        <div class="row-date" style="margin-top:6px;">
           <select id="p_year"></select>
           <select id="p_month"></select>
           <select id="p_day"></select>
@@ -316,6 +317,7 @@ window.addEventListener('error',function(e){
       <summary>日報タブ</summary>
       <div class="hbody">
         <p><b>日付の帯（1〜31日目）</b>…作業日を選びます。<b>●印は入力済み</b>の日です。</p>
+        <p><b>作業日</b>…カレンダー欄をタップしてカレンダーから選ぶか、月・日のプルダウンで指定します（どちらでも同じです）。</p>
         <p><b>作業者</b>…リストから選択。リストにない人は一番下の「✎ 手入力…」を選ぶと名前を直接入力できます。1つの班は最大5名、1社最大4班です。</p>
         <p><b>始業・終業</b>…30分きざみで選択。<b>深夜0時をまたぐ場合は「翌」の付いた時刻</b>（例：26:00（翌2:00））を選んでください。夜勤の計算が正しく行われます。</p>
         <p><b>前の入力日からコピー</b>…メンバー・時間・経費を前の入力済みの日から丸ごとコピーします（日付と引継ぎ事項はコピーされません）。連日同じ体制の時に便利です。</p>
@@ -409,7 +411,7 @@ const NAME_COLS=['A','B','C','D','E'];
 function emptyCrewRow(){return {names:['','','','',''],start:'',end:''};}
 function emptyDay(){
   return {
-    month:'', day:'',
+    year:'', month:'', day:'',
     crews:[[emptyCrewRow()],[emptyCrewRow()],[emptyCrewRow()]],
     matFlag:'', materials:[], expenses:[{},{},{}], notes:''
   };
@@ -455,6 +457,16 @@ function dayHasData(d){
 /* =========================================================
    基本情報タブ
 ========================================================= */
+function pad2(n){n=String(n);return n.length<2?'0'+n:n;}
+function ensureOpt(sel,v){
+  v=String(v);
+  const has=Array.prototype.some.call(sel.options,o=>o.value===v||o.text===v);
+  if(!has)sel.add(new Option(v,v));
+}
+function syncPDate(){
+  const p=state.project;
+  $('#p_date').value=(p.year&&p.month&&p.day)?p.year+'-'+pad2(p.month)+'-'+pad2(p.day):'';
+}
 function initBasic(){
   const y=$('#p_year'); y.innerHTML=[0,1,2].map(i=>{const yy=new Date().getFullYear()-1+i;return `<option>${yy}</option>`;}).join('');
   opt($('#p_month'),Array.from({length:12},(_,i)=>i+1),'月');
@@ -471,11 +483,26 @@ function initBasic(){
     el.addEventListener('input',()=>{state.project[map[id]]=el.value;store();refreshSummary();renderDayHeaderNames();});
   }
   $('#p_year').value=state.project.year;
+  // カレンダー入力 → プルダウンへ反映
+  $('#p_date').addEventListener('change',()=>{
+    const v=$('#p_date').value; if(!v)return;
+    const parts=v.split('-');
+    const p=state.project;
+    p.year=String(+parts[0]); p.month=String(+parts[1]); p.day=String(+parts[2]);
+    ensureOpt($('#p_year'),p.year);
+    $('#p_year').value=p.year; $('#p_month').value=p.month; $('#p_day').value=p.day;
+    store(); refreshSummary();
+  });
+  // プルダウン → カレンダー入力へ反映
+  ['p_year','p_month','p_day'].forEach(id=>document.getElementById(id).addEventListener('input',syncPDate));
+  syncPDate();
 }
 function syncBasicInputs(){
   const p=state.project;
   const pairs=[['p_year','year'],['p_month','month'],['p_day','day'],['p_name','name'],['p_no','no'],['p_status','status'],['p_contractor','contractor'],['p_team','team'],['p_sup1','sup1'],['p_sup2','sup2'],['p_est','est'],['p_estLabor','estLabor'],['p_estPay','estPay'],['p_fin','fin'],['p_finMat','finMat'],['p_finOut','finOut'],['p_notes','notes']];
+  if(p.year)ensureOpt($('#p_year'),p.year);
   pairs.forEach(([id,k])=>{document.getElementById(id).value=p[k]||'';});
+  syncPDate();
 }
 
 /* =========================================================
@@ -517,9 +544,10 @@ function renderDayForm(){
   const tOpts=timeOptions();
   let html=`<div class="card">
     <div class="sec"><h2>${curDay}日目<span class="badge">工事作業日報</span></h2></div>
-    <label class="f">作業日
-      <div class="row-date">
-        <input value="${p.year}年" disabled>
+    <label class="f">作業日（カレンダーでもプルダウンでも選べます）
+      <input type="date" id="d_date" value="${(d.month&&d.day)?(d.year||p.year)+'-'+pad2(d.month)+'-'+pad2(d.day):''}">
+      <div class="row-date" style="margin-top:6px;">
+        <input id="d_year_disp" value="${(d.year||p.year)}年" disabled>
         <select id="d_month">${$('#p_month').innerHTML}</select>
         <select id="d_day">${$('#p_day').innerHTML}</select>
       </div>
@@ -603,8 +631,21 @@ function renderMatRows(){
 function bindDayForm(){
   const d=getDay(curDay);
   const upd=()=>{store();renderStrip();refreshSummary();};
-  $('#d_month').addEventListener('input',e=>{d.month=e.target.value;upd();});
-  $('#d_day').addEventListener('input',e=>{d.day=e.target.value;upd();});
+  const syncDDate=()=>{
+    const y=d.year||state.project.year;
+    $('#d_date').value=(d.month&&d.day)?y+'-'+pad2(d.month)+'-'+pad2(d.day):'';
+    $('#d_year_disp').value=y+'年';
+  };
+  $('#d_date').addEventListener('change',e=>{
+    const v=e.target.value; if(!v)return;
+    const parts=v.split('-');
+    d.year=String(+parts[0]); d.month=String(+parts[1]); d.day=String(+parts[2]);
+    $('#d_month').value=d.month; $('#d_day').value=d.day;
+    $('#d_year_disp').value=d.year+'年';
+    upd();
+  });
+  $('#d_month').addEventListener('input',e=>{d.month=e.target.value;syncDDate();upd();});
+  $('#d_day').addEventListener('input',e=>{d.day=e.target.value;syncDDate();upd();});
   $('#d_matflag').addEventListener('input',e=>{d.matFlag=e.target.value;upd();});
   $('#d_notes').addEventListener('input',e=>{d.notes=e.target.value;upd();});
   function bindName(el){
@@ -652,7 +693,7 @@ $('#copyPrev').addEventListener('click',()=>{
   for(let n=curDay-1;n>=1;n--){ if(dayHasData(state.days[n])){src=n;break;} }
   if(src==null){toast('コピー元となる入力済みの日がありません');return;}
   const cp=JSON.parse(JSON.stringify(state.days[src]));
-  cp.month='';cp.day='';cp.notes='';
+  cp.year='';cp.month='';cp.day='';cp.notes='';
   state.days[curDay]=cp; store(); renderDayForm(); renderStrip(); refreshSummary();
   toast(`${src}日目の内容をコピーしました（日付・引継ぎは除く）`);
 });
@@ -752,7 +793,7 @@ function applyProject(xml,p){
 }
 
 function applyDay(xml,d,p){
-  xml=setNum(xml,'B3',p.year); xml=setNum(xml,'D3',d.month); xml=setNum(xml,'F3',d.day);
+  xml=setNum(xml,'B3',d.year||p.year); xml=setNum(xml,'D3',d.month); xml=setNum(xml,'F3',d.day);
   for(let c=0;c<3;c++){
     (d.crews[c]||[]).slice(0,4).forEach((r,ri)=>{
       const row=CREW_BASE[c]+ri;
@@ -961,7 +1002,7 @@ function normalizeState(data){
   for(const n in data.days){
     const d=data.days[n], ed=emptyDay();
     if(!d||typeof d!=='object'){delete data.days[n];continue;}
-    if(d.month==null)d.month=''; if(d.day==null)d.day=''; if(d.matFlag==null)d.matFlag=''; if(d.notes==null)d.notes='';
+    if(d.year==null)d.year=''; if(d.month==null)d.month=''; if(d.day==null)d.day=''; if(d.matFlag==null)d.matFlag=''; if(d.notes==null)d.notes='';
     if(!Array.isArray(d.crews)||d.crews.length!==3)d.crews=ed.crews;
     d.crews=d.crews.map(c=>{
       if(!Array.isArray(c)||!c.length)return [emptyCrewRow()];
