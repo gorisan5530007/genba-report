@@ -240,6 +240,11 @@ window.addEventListener('error',function(e){
       </label>
     </div>
   </div>
+  <div class="card">
+    <div class="sec" style="border-left-color:#C92A2A;"><h2>リセット</h2></div>
+    <button class="btn" id="clearAll" style="color:#C92A2A;border-color:#E3A0A0;">⚠ すべての入力をクリア</button>
+    <p class="hint">案件情報・日報（1〜31日目）・この端末の自動保存データをすべて消去します。次の案件を入力する前にお使いください。</p>
+  </div>
 </section>
 
 </main>
@@ -293,11 +298,14 @@ function emptyDay(){
     matFlag:'', materials:[], expenses:[{},{},{}], notes:''
   };
 }
-let state={
-  project:{year:String(new Date().getFullYear()),month:'',day:'',name:'',no:'',contractor:'',team:'',sup1:'',sup2:'',status:'',
-           est:'',estLabor:'',estPay:'',fin:'',finMat:'',finOut:'',notes:''},
-  days:{}
-};
+function initialState(){
+  return {
+    project:{year:String(new Date().getFullYear()),month:'',day:'',name:'',no:'',contractor:'',team:'',sup1:'',sup2:'',status:'',
+             est:'',estLabor:'',estPay:'',fin:'',finMat:'',finOut:'',notes:''},
+    days:{}
+  };
+}
+let state=initialState();
 let curDay=1;
 let templateBuf=null, templateName='';
 
@@ -767,6 +775,16 @@ $('#saveDraft').addEventListener('click',()=>{
   doDownload(blob,`下書き_${state.project.name||'施工報告'}.json`);
   toast('下書きを保存しました');
 });
+$('#clearAll').addEventListener('click',()=>{
+  if(!confirm('案件情報と日報1〜31日目の入力をすべて消去します。よろしいですか？'))return;
+  if(!confirm('この操作は元に戻せません。本当に消去しますか？\n（必要なら先に「下書きを保存」でバックアップできます）'))return;
+  state=initialState();
+  try{localStorage.removeItem('reportAssist');}catch(e){}
+  curDay=1;
+  syncBasicInputs(); renderStrip(); renderDayForm(); refreshSummary(); renderDayHeaderNames();
+  toast('すべての入力をクリアしました');
+});
+
 $('#loadDraft').addEventListener('change',async e=>{
   const f=e.target.files[0]; if(!f)return;
   try{
