@@ -816,13 +816,46 @@ $('#clearAll').addEventListener('click',()=>{
   toast('すべての入力をクリアしました');
 });
 
-$('#loadDraft').addEventListener('change',async e=>{
+function normalizeState(data){
+  if(!data||typeof data!=='object'||!data.project)throw new Error('形式不一致');
+  const base=initialState();
+  for(const k in base.project){ if(data.project[k]==null)data.project[k]=base.project[k]; }
+  if(!data.days||typeof data.days!=='object')data.days={};
+  for(const n in data.days){
+    const d=data.days[n], ed=emptyDay();
+    if(!d||typeof d!=='object'){delete data.days[n];continue;}
+    if(d.month==null)d.month=''; if(d.day==null)d.day=''; if(d.matFlag==null)d.matFlag=''; if(d.notes==null)d.notes='';
+    if(!Array.isArray(d.crews)||d.crews.length!==3)d.crews=ed.crews;
+    d.crews=d.crews.map(c=>{
+      if(!Array.isArray(c)||!c.length)return [emptyCrewRow()];
+      return c.slice(0,4).map(r=>{
+        if(!r||typeof r!=='object')return emptyCrewRow();
+        if(!Array.isArray(r.names))r.names=['','','','',''];
+        while(r.names.length<5)r.names.push('');
+        if(r.start==null)r.start=''; if(r.end==null)r.end='';
+        return r;
+      });
+    });
+    if(!Array.isArray(d.materials))d.materials=[];
+    if(!Array.isArray(d.expenses)||d.expenses.length!==3)d.expenses=[{},{},{}];
+  }
+  return data;
+}
+$('#loadDraft').addEventListener('change',e=>{
   const f=e.target.files[0]; if(!f)return;
-  try{
-    state=JSON.parse(await f.text());
-    store(); syncBasicInputs(); renderStrip(); renderDayForm(); refreshSummary();
-    toast('下書きを読み込みました');
-  }catch(err){toast('下書きの読み込みに失敗しました');}
+  const reader=new FileReader();
+  reader.onload=function(){
+    try{
+      state=normalizeState(JSON.parse(reader.result));
+      store(); syncBasicInputs(); renderStrip(); renderDayForm(); refreshSummary(); renderDayHeaderNames();
+      toast('下書きを読み込みました');
+    }catch(err){
+      toast('下書きの読み込みに失敗：このアプリで保存したJSONファイルか確認してください');
+    }
+    e.target.value='';
+  };
+  reader.onerror=function(){ toast('ファイルを開けませんでした'); e.target.value=''; };
+  reader.readAsText(f);
 });
 
 /* =========================================================
