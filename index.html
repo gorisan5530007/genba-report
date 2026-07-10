@@ -695,7 +695,30 @@ function embeddedTemplate(){
   for(let i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);
   return u8.buffer;
 }
+const isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1);
+let readyBlob=null, readyName='';
+
+function doDownload(blob,filename){
+  const url=URL.createObjectURL(blob);
+  if(isIOS){
+    // iOSはBlobのURLを新規タブで開くと「共有」→「ファイルに保存」を選べる
+    const w=window.open(url,'_blank');
+    if(!w){ location.href=url; }
+    setTimeout(()=>URL.revokeObjectURL(url),60000);
+    toast('別タブが開きます。右上の共有アイコン→「ファイルに保存」を選んでください');
+  }else{
+    const a=document.createElement('a');
+    a.href=url; a.download=filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),4000);
+  }
+}
+
 $('#generate').addEventListener('click',async ()=>{
+  const btn=$('#generate');
+  if(btn.dataset.mode==='ready')return; // 2回目のタップは下の別ハンドラが処理
+  const orig=btn.textContent;
+  btn.disabled=true; btn.textContent='生成中…';
   try{
     const buf=templateBuf?templateBuf.slice(0):embeddedTemplate();
     const zip=await JSZip.loadAsync(buf);
@@ -704,23 +727,40 @@ $('#generate').addEventListener('click',async ()=>{
     const clean=s=>String(s).trim().replace(/[\\/:*?"<>|]/g,'_');
     const no=clean(state.project.no||'受付No未入力');
     const nm=clean(state.project.name||'案件名未入力');
-    const a=document.createElement('a');
-    a.href=URL.createObjectURL(blob);
-    a.download=`${no}_${nm}_施工完了報告書.xlsx`;
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+    const filename=`${no}_${nm}_施工完了報告書.xlsx`;
+    if(isIOS){
+      // iOSは生成直後のタップ（ユーザー操作の瞬間）でないと保存がブロックされることがあるため、
+      // 生成が終わったらボタンを「ダウンロード」に変え、そのタップで即実行する
+      readyBlob=blob; readyName=filename;
+      btn.textContent=`📥 ダウンロード（${filename}）`;
+      btn.disabled=false;
+      btn.dataset.mode='ready';
+      toast(`生成できました（日報 ${days.length}日分）。もう一度ボタンを押すと保存します`);
+      return;
+    }
+    doDownload(blob,filename);
     toast(`生成しました（日報 ${days.length}日分を書き込み）`);
+    btn.disabled=false; btn.textContent=orig;
   }catch(err){
     console.error(err); toast('生成に失敗：'+err.message);
+    btn.disabled=false; btn.textContent=orig;
+  }
+});
+
+// iOS: 2回目のタップ（生成済みのファイルをその場で保存）
+$('#generate').addEventListener('click',(e)=>{
+  const btn=e.currentTarget;
+  if(btn.dataset.mode==='ready' && readyBlob){
+    doDownload(readyBlob,readyName);
+    btn.dataset.mode='';
+    btn.textContent='Excelを生成してダウンロード';
+    readyBlob=null;
   }
 });
 
 $('#saveDraft').addEventListener('click',()=>{
   const blob=new Blob([JSON.stringify(state,null,1)],{type:'application/json'});
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(blob);
-  a.download=`下書き_${state.project.name||'施工報告'}.json`;
-  document.body.appendChild(a);a.click();a.remove();
+  doDownload(blob,`下書き_${state.project.name||'施工報告'}.json`);
   toast('下書きを保存しました');
 });
 $('#loadDraft').addEventListener('change',async e=>{
